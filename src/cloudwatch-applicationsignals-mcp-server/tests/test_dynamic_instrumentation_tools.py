@@ -93,11 +93,6 @@ class TestBoto3ClientFactory:
         assert client.meta.endpoint_url.startswith('https://')
         assert 'application-signals' in client.meta.endpoint_url
 
-    def test_cloudwatch_logs_client_initializes(self):
-        """Cloudwatch logs client initializes."""
-        client = aws_clients.get_cloudwatch_logs_client()
-        assert 'StartQuery' in client.meta.service_model.operation_names
-
 
 class TestErrorTranslator:
     """Test the boto3 exception → human message helper."""

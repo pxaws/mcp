@@ -39,10 +39,15 @@ The factory exposes two lazy singletons:
 - `get_application_signals_client()` — used internally by the
   `application_signals_gateway` module. CRUD and status tools never call this
   directly; they go through the gateway.
-- `get_cloudwatch_logs_client()` — used by snapshot CloudWatch Logs Insights queries.
 
-If `DYNAMIC_INSTRUMENTATION_ENDPOINT_URL` is set, both clients honor it as an
-endpoint override; otherwise normal AWS endpoint resolution applies.
+Snapshot CloudWatch Logs Insights queries reuse the parent server's shared
+`logs_client` (`from .. import aws_clients; aws_clients.logs_client`) rather
+than a local Logs client, so they inherit `MCP_LOGS_ENDPOINT` and `AWS_PROFILE`
+handling from the rest of the server.
+
+If `DYNAMIC_INSTRUMENTATION_ENDPOINT_URL` is set, the `application-signals`
+client honors it as an endpoint override; otherwise normal AWS endpoint
+resolution applies.
 
 ## application-signals Gateway
 
@@ -67,9 +72,10 @@ no longer import `botocore.exceptions` — that contract belongs to the gateway.
 - `constants.py`
   Shared runtime constants such as signal type and snapshot log group.
 - `aws_clients.py`
-  Lazy boto3 client factory. Loads the bundled private `application-signals`
-  service model via a scoped botocore data loader, pins the API version to
-  `2024-04-15`, and exposes `application-signals` and CloudWatch Logs clients.
+  Lazy boto3 client factory for the private-model `application-signals` client
+  only. Loads the bundled private service model via a scoped botocore data
+  loader and pins the API version to `2024-04-15`. Snapshot Logs queries use the
+  parent server's shared `logs_client`, not this factory.
 - `application_signals_gateway.py`
   The only module that calls `application-signals` boto3 operations and
   catches `botocore` exceptions. Wraps any failure in `GatewayError` and

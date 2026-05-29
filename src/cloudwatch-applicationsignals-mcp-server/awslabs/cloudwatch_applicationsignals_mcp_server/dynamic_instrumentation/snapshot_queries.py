@@ -14,7 +14,7 @@
 """CloudWatch Logs Insights query helpers for snapshot tools."""
 
 import time
-from .aws_clients import get_cloudwatch_logs_client
+from .. import aws_clients
 from .constants import SNAPSHOT_LOG_GROUP
 from botocore.exceptions import ClientError
 
@@ -27,7 +27,7 @@ def _execute_cloudwatch_query(
     max_timeout: int = 30,
 ) -> dict:
     """Execute a CloudWatch Logs Insights query and poll for results."""
-    logs = get_cloudwatch_logs_client()
+    logs = aws_clients.logs_client
 
     try:
         start_response = logs.start_query(

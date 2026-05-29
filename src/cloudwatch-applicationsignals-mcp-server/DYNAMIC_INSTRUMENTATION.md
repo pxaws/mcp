@@ -82,15 +82,13 @@ This is the one-shot change that makes the feature mergeable to mainline:
 1. Bump the `boto3` floor in `pyproject.toml` to the version that ships the
    dynamic-instrumentation operations in public `application-signals` data.
 2. Rewrite `dynamic_instrumentation/aws_clients.py` to re-export the parent
-   `applicationsignals_client` / `logs_client`:
+   `applicationsignals_client` (snapshot Logs queries already use the parent
+   `logs_client` directly, so only the `application-signals` client remains):
    ```python
-   from ..aws_clients import applicationsignals_client, logs_client
+   from ..aws_clients import applicationsignals_client
 
    def get_application_signals_client():
        return applicationsignals_client
-
-   def get_cloudwatch_logs_client():
-       return logs_client
    ```
 3. Delete the `dynamic_instrumentation/aws_data/` directory.
 4. Drop `DYNAMIC_INSTRUMENTATION_ENDPOINT_URL` from docs (the parent client

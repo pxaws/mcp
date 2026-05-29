@@ -62,7 +62,6 @@ def _build_session() -> boto3.Session:
 
 
 _application_signals_client = None
-_cloudwatch_logs_client = None
 
 
 def get_application_signals_client():
@@ -89,25 +88,7 @@ def get_application_signals_client():
     return _application_signals_client
 
 
-def get_cloudwatch_logs_client():
-    """Return a lazily-built CloudWatch Logs client used by snapshot queries."""
-    global _cloudwatch_logs_client
-    if _cloudwatch_logs_client is not None:
-        return _cloudwatch_logs_client
-
-    region = _resolve_region()
-    session = _build_session()
-    _cloudwatch_logs_client = session.client(
-        'logs',
-        region_name=region,
-        config=_build_config(),
-    )
-    logger.debug(f'CloudWatch Logs client initialized (region={region})')
-    return _cloudwatch_logs_client
-
-
 def _reset_clients() -> None:
-    """Drop cached clients so tests can re-initialize against a fresh stub."""
-    global _application_signals_client, _cloudwatch_logs_client
+    """Drop the cached client so tests can re-initialize against a fresh stub."""
+    global _application_signals_client
     _application_signals_client = None
-    _cloudwatch_logs_client = None

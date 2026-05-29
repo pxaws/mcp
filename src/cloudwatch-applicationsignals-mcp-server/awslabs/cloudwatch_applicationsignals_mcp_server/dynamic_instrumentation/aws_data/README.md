@@ -23,7 +23,8 @@ When the public SDK ships these operations:
 
 1. Bump the `boto3` floor in `pyproject.toml` to the version that includes them.
 2. Rewrite `dynamic_instrumentation/aws_clients.py` to re-export the parent
-   `applicationsignals_client` / `logs_client`.
+   `applicationsignals_client` (snapshot Logs queries already use the parent
+   `logs_client` directly).
 3. Delete this `aws_data/` directory.
 
 This directory and its model must **not** be shipped in a public PyPI release.
