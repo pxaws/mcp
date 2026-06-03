@@ -84,7 +84,6 @@ def get_instrumentation_configuration_status(
     environment: str,
     instrumentation_type: str,
     location_hash: Optional[str] = None,
-    endpoint: Optional[str] = None,
     language: Optional[str] = None,
     file_path: Optional[str] = None,
     code_unit: Optional[str] = None,
@@ -110,7 +109,6 @@ def get_instrumentation_configuration_status(
         environment: Backend environment identifier.
         instrumentation_type: BREAKPOINT or PROBE.
         location_hash: Preferred identifier for an existing configuration.
-        endpoint: Not used for status checks.
         language: Code language for code-location lookup.
         file_path: Code file path for code-location lookup.
         code_unit: Optional module/package name for code-location lookup.
@@ -131,8 +129,6 @@ def get_instrumentation_configuration_status(
     normalized_type, type_error = normalize_instrumentation_type(instrumentation_type)
     if type_error:
         return type_error
-    if normalized_type == 'WATCHER':
-        return 'ERROR: WATCHER does not support get-instrumentation-configuration-status.'
     signal_error = validate_snapshot_signal(signal_type)
     if signal_error:
         return signal_error
@@ -140,14 +136,12 @@ def get_instrumentation_configuration_status(
     location, location_error = parse_lookup_inputs(
         normalized_type=normalized_type,
         location_hash=location_hash,
-        endpoint=endpoint,
         language=language,
         file_path=file_path,
         code_unit=code_unit,
         class_name=class_name,
         method_name=method_name,
         line_number=line_number,
-        allow_watcher_endpoint_lookup=False,
         allow_code_location_lookup=True,
     )
     if location_error:
@@ -267,8 +261,6 @@ def check_instrumentation_status(
     normalized_type, type_error = normalize_instrumentation_type(instrumentation_type)
     if type_error:
         return type_error
-    if normalized_type == 'WATCHER':
-        return 'ERROR: WATCHER does not support check_instrumentation_status.'
     signal_error = validate_snapshot_signal(signal_type)
     if signal_error:
         return signal_error

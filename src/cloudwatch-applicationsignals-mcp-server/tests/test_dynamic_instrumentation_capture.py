@@ -33,7 +33,6 @@ from awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.ca
     CaptureLimits,
     CodeCapture,
     UnknownCapture,
-    WatcherCapture,
     capture_from_response,
 )
 
@@ -62,11 +61,6 @@ class TestCaptureFromResponse:
         assert cap.limits.max_hits == 3
         assert cap.limits.max_string_length == 128
         assert cap.limits.max_collection_width is None
-
-    def test_parses_watcher_capture(self):
-        """Parses watcher capture."""
-        cap = capture_from_response({'WatcherCapture': {}})
-        assert isinstance(cap, WatcherCapture)
 
     def test_unknown_payload_returns_unknown_capture(self):
         """Unknown payload returns unknown capture."""
@@ -131,16 +125,6 @@ class TestCaptureLimits:
         """Partial limits emit only set keys."""
         payload = CaptureLimits(max_hits=3, max_object_depth=5).to_api_payload()
         assert payload == {'MaxHits': 3, 'MaxObjectDepth': 5}
-
-
-class TestWatcherCaptureRoundTrip:
-    """TestWatcherCaptureRoundTrip."""
-
-    def test_watcher_capture_payload_is_empty_dict(self):
-        """Watcher capture payload is empty dict."""
-        cap = WatcherCapture()
-        assert cap.to_api_payload() == {'WatcherCapture': {}}
-        assert isinstance(capture_from_response(cap.to_api_payload()), WatcherCapture)
 
 
 if __name__ == '__main__':

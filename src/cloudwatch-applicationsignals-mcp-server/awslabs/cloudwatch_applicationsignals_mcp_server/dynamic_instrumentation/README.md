@@ -135,16 +135,16 @@ no longer import `botocore.exceptions` — that contract belongs to the gateway.
 - `*_queries.py`
   Backend/API query helpers only.
 - `location.py`
-  The `Location` ADT (sealed sum: `CodeLocation` | `WatcherLocation` |
+  The `Location` ADT (sealed sum: `CodeLocation` |
   `HashLocation`) plus its parsers (`parse_create_inputs`,
   `parse_lookup_inputs`, `location_from_response`). Tools turn flat MCP
   kwargs into a `Location` here and call `.to_api_payload()` /
   `.to_identifier()` / `.describe()`; renderers turn API response unions
   into a `Location` here and call `.format_details()` / `.level()`.
 - `capture.py`
-  The `Capture` ADT (sealed sum: `CodeCapture` | `WatcherCapture` |
+  The `Capture` ADT (sealed sum: `CodeCapture` |
   `UnknownCapture`) plus `CaptureLimits` and `capture_from_response`. Tools
-  build `CodeCapture`/`WatcherCapture` directly and call `.to_api_payload()`;
+  build `CodeCapture` directly and call `.to_api_payload()`;
   renderers parse the API response with `capture_from_response` and read
   fields from the ADT. The `CaptureArguments` "omitted vs. empty list"
   distinction survives the round-trip.
@@ -172,8 +172,8 @@ no longer import `botocore.exceptions` — that contract belongs to the gateway.
   Use `*_rendering.py`.
 - Keep backend polling/query code out of tool files when it is reusable or verbose.
   Use `*_queries.py`.
-- The `Location` ADT in `location.py` is the only place that knows the three
-  location flavors (CodeLocation / WatcherLocation / LocationHash). Tools and
+- The `Location` ADT in `location.py` is the only place that knows the
+  location flavors (CodeLocation / HashLocation). Tools and
   renderers should never inspect raw `Location` / `LocationIdentifier` dicts;
   parse to the ADT first.
 - Put shared payload shape logic in `location.py` and `capture.py`.
@@ -183,7 +183,6 @@ no longer import `botocore.exceptions` — that contract belongs to the gateway.
 ## Current Behavioral Invariants
 
 - Code instrumentation requires explicit `capture_arguments`.
-- `WATCHER` participates in CRUD flows but not the code-only status APIs.
 - Snapshot search/sample tools return JSON strings, not prose summaries.
 - Tool responses intentionally surface actionable error text instead of Python stack traces.
 - Dynamic instrumentation tools are registered in `main()` after Telemend sets runtime environment variables.

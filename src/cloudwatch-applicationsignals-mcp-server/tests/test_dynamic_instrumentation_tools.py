@@ -392,30 +392,6 @@ class TestCrudToolsBoto3Integration:
         assert 'SuccessfulDeletions: 2' in rendered
 
 
-class TestWatcherEndpointValidation:
-    """Test watcher endpoint validation helpers."""
-
-    def test_accepts_wildcard(self):
-        """Accepts wildcard."""
-        assert validation.validate_watcher_endpoint('*') is None
-
-    def test_accepts_concrete_endpoint(self):
-        """Accepts concrete endpoint."""
-        assert validation.validate_watcher_endpoint('POST /getuser/userid') is None
-
-    def test_rejects_empty_endpoint(self):
-        """Rejects empty endpoint."""
-        error = validation.validate_watcher_endpoint('')
-        assert error is not None
-        assert 'between 1 and 255' in error
-
-    def test_rejects_partial_wildcard(self):
-        """Rejects partial wildcard."""
-        error = validation.validate_watcher_endpoint('POST *')
-        assert error is not None
-        assert "exactly '*'" in error
-
-
 class TestLocationLookupParser:
     """Test parse_lookup_inputs across supported input shapes."""
 
@@ -429,27 +405,6 @@ class TestLocationLookupParser:
         assert loc is not None
         assert loc.describe() == 'LocationHash abcdef1234567890'
         assert loc.to_identifier() == {'LocationHash': 'abcdef1234567890'}
-
-    def test_resolves_watcher_endpoint(self):
-        """Resolves watcher endpoint."""
-        loc, error = location.parse_lookup_inputs(
-            normalized_type='WATCHER',
-            endpoint='POST /getuser/userid',
-        )
-        assert error is None
-        assert loc is not None
-        assert loc.describe() == 'POST /getuser/userid'
-        assert loc.to_identifier() == {'WatcherLocation': {'Endpoint': 'POST /getuser/userid'}}
-
-    def test_rejects_endpoint_for_non_watcher_type(self):
-        """Rejects endpoint for non watcher type."""
-        loc, error = location.parse_lookup_inputs(
-            normalized_type='BREAKPOINT',
-            endpoint='POST /getuser/userid',
-        )
-        assert loc is None
-        assert error is not None
-        assert 'only valid when instrumentation_type=WATCHER' in error
 
     def test_resolves_code_location(self):
         """Resolves code location."""
@@ -469,17 +424,6 @@ class TestLocationLookupParser:
             }
         }
         assert loc.describe() == '/app/handler.py.run'
-
-    def test_rejects_endpoint_lookup_when_operation_disallows_it(self):
-        """Rejects endpoint lookup when operation disallows it."""
-        loc, error = location.parse_lookup_inputs(
-            normalized_type='WATCHER',
-            endpoint='*',
-            allow_watcher_endpoint_lookup=False,
-        )
-        assert loc is None
-        assert error is not None
-        assert 'not supported for this operation' in error
 
 
 class TestLocationVariantContracts:
@@ -594,7 +538,7 @@ class TestBatchDeleteFormatting:
         """Batch delete response includes success and errors."""
         rendered = crud_rendering._format_batch_delete_response(
             mode='ResourceArns',
-            instrumentation_type='WATCHER',
+            instrumentation_type='BREAKPOINT',
             data={
                 'DeletedCount': 1,
                 'SuccessfulDeletions': [

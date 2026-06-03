@@ -13,7 +13,7 @@
 # limitations under the License.
 """Formatting helpers for CRUD tool responses."""
 
-from .capture import CodeCapture, WatcherCapture, capture_from_response
+from .capture import CodeCapture, capture_from_response
 from .constants import SNAPSHOT_SIGNAL_TYPE
 from .formatting import format_timestamp
 from .location import Location, location_from_response, render_location_block
@@ -121,34 +121,30 @@ INSTRUMENTATION CREATED:
     success_message += render_location_block(location=location, location_hash=location_hash)
     success_message += '\nCAPTURE CONFIGURATION:\n'
 
-    if normalized_type == 'WATCHER':
-        success_message += '- Mode: WatcherCapture (empty configuration)\n'
-        success_message += '- Status APIs: Not supported for WATCHER\n'
+    if capture_arguments:
+        success_message += f'- Arguments: {", ".join(capture_arguments)}\n'
     else:
-        if capture_arguments:
-            success_message += f'- Arguments: {", ".join(capture_arguments)}\n'
-        else:
-            success_message += '- Arguments: (none)\n'
-        if wildcard_removed:
-            success_message += '  Note: wildcard * is not supported and was ignored.\n'
+        success_message += '- Arguments: (none)\n'
+    if wildcard_removed:
+        success_message += '  Note: wildcard * is not supported and was ignored.\n'
 
-        if code_capture_locals:
-            success_message += f'- Local Variables: {", ".join(code_capture_locals)}\n'
+    if code_capture_locals:
+        success_message += f'- Local Variables: {", ".join(code_capture_locals)}\n'
 
-        success_message += f'- Return Values: {"Enabled" if code_capture_return else "Disabled"}\n'
-        success_message += (
-            f'- Stack Traces: {"Enabled" if code_capture_stack_trace else "Disabled"}\n'
-        )
-        success_message += _render_create_capture_limits(
-            max_hits=max_hits,
-            max_string_length=max_string_length,
-            max_collection_width=max_collection_width,
-            max_collection_depth=max_collection_depth,
-            max_stack_frames=max_stack_frames,
-            max_stack_trace_size=max_stack_trace_size,
-            max_object_depth=max_object_depth,
-            max_fields_per_object=max_fields_per_object,
-        )
+    success_message += f'- Return Values: {"Enabled" if code_capture_return else "Disabled"}\n'
+    success_message += (
+        f'- Stack Traces: {"Enabled" if code_capture_stack_trace else "Disabled"}\n'
+    )
+    success_message += _render_create_capture_limits(
+        max_hits=max_hits,
+        max_string_length=max_string_length,
+        max_collection_width=max_collection_width,
+        max_collection_depth=max_collection_depth,
+        max_stack_frames=max_stack_frames,
+        max_stack_trace_size=max_stack_trace_size,
+        max_object_depth=max_object_depth,
+        max_fields_per_object=max_fields_per_object,
+    )
 
     if attribute_filters:
         success_message += (
@@ -228,8 +224,6 @@ LOCATION:
                     limit_strs.append(f'MaxCollWidth={limits.max_collection_width}')
                 if limit_strs:
                     output += f'- Limits: {", ".join(limit_strs)}\n'
-        elif isinstance(cap, WatcherCapture):
-            output += '- Mode: WatcherCapture (empty configuration)\n'
         else:
             output += '- Capture payload could not be parsed.\n'
 
@@ -307,8 +301,6 @@ LOCATION:
                 output += f'- Max Object Depth: {limits.max_object_depth}\n'
             if limits.max_fields_per_object is not None:
                 output += f'- Max Fields Per Object: {limits.max_fields_per_object}\n'
-    elif isinstance(cap, WatcherCapture):
-        output += '- Mode: WatcherCapture (empty configuration)\n'
     else:
         output += '- Capture payload could not be parsed.\n'
 

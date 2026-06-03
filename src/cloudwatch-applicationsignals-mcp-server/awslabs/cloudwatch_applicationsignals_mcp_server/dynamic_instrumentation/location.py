@@ -19,7 +19,6 @@ code (or which endpoint) an instrumentation configuration applies. The
 
 * ``CodeLocation``    — language + file/class/method/line, used by BREAKPOINT
                         and PROBE.
-* ``WatcherLocation`` — an HTTP endpoint string, used by WATCHER.
 * ``LocationHash``    — a 16-character hex identifier referring to an
                         already-created configuration.
 
@@ -34,7 +33,7 @@ inspect raw union dicts; they call ``location_from_response`` and use the
 type's instance methods.
 """
 
-from .validation import _validate_location_inputs, validate_watcher_endpoint
+from .validation import _validate_location_inputs
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
@@ -138,45 +137,6 @@ class CodeLocation:
 
 
 @dataclass(frozen=True)
-class WatcherLocation:
-    """An endpoint-based instrumentation target (WATCHER)."""
-
-    endpoint: str
-    extra_fields: Mapping[str, Any] = field(default_factory=lambda: _EMPTY_EXTRA_FIELDS)
-
-    def __post_init__(self) -> None:
-        """Freeze ``extra_fields`` past the dataclass frozen guard."""
-        object.__setattr__(self, 'extra_fields', _freeze_mapping(self.extra_fields))
-
-    def describe(self) -> str:
-        """Return a one-line human description of the watcher target."""
-        return self.endpoint or 'N/A'
-
-    def level(self) -> Optional[str]:
-        """Return None — watchers have no breakpoint granularity."""
-        return None
-
-    def format_details(self, location_hash: Optional[str] = None) -> str:
-        """Render the watcher location as labeled detail lines."""
-        lines = ['- LocationKind: WATCHER']
-        if location_hash:
-            lines.append(f'- LocationHash: {location_hash}')
-        if self.endpoint is not None:
-            lines.append(f'- Endpoint: {self.endpoint}')
-        for key in sorted(self.extra_fields.keys()):
-            lines.append(f'- {key}: {self.extra_fields[key]}')
-        return '\n'.join(lines) + '\n'
-
-    def to_api_payload(self) -> Dict[str, Any]:
-        """Return the WatcherLocation create-request payload."""
-        return {'WatcherLocation': {'Endpoint': self.endpoint}}
-
-    def to_identifier(self) -> Dict[str, Any]:
-        """Return the WatcherLocation lookup identifier payload."""
-        return {'WatcherLocation': {'Endpoint': self.endpoint}}
-
-
-@dataclass(frozen=True)
 class HashLocation:
     """An existing configuration referenced by its 16-char location hash.
 
@@ -184,7 +144,7 @@ class HashLocation:
 
     * ``to_api_payload`` is *unsupported*: a hash cannot describe a *new*
       configuration — ``create_instrumentation_configuration`` requires
-      a real CodeLocation or WatcherLocation.
+      a real CodeLocation.
     * ``format_details`` is *unsupported*: a hash has no fields beyond
       itself; ``render_location_block`` prints the hash via its
       ``HashLocation`` special case instead.
@@ -214,7 +174,7 @@ class HashLocation:
         """Unsupported — a hash cannot describe a new configuration."""
         raise NotImplementedError(
             'HashLocation cannot be used in create requests — use to_identifier() instead. '
-            'create_instrumentation_configuration requires a CodeLocation or WatcherLocation.'
+            'create_instrumentation_configuration requires a CodeLocation.'
         )
 
     def format_details(self, location_hash: Optional[str] = None) -> str:
@@ -267,7 +227,7 @@ class UnknownLocation:
         return '\n'.join(lines) + '\n'
 
 
-Location = Union[CodeLocation, WatcherLocation, HashLocation, UnknownLocation]
+Location = Union[CodeLocation, HashLocation, UnknownLocation]
 
 
 # ──────────────────────────── input parsers ────────────────────────────
@@ -282,7 +242,6 @@ def parse_create_inputs(
     class_name: Optional[str] = None,
     method_name: Optional[str] = None,
     line_number: Optional[int] = None,
-    endpoint: Optional[str] = None,
 ) -> Tuple[Optional[Location], Optional[str]]:
     """Parse MCP-tool kwargs into a ``Location`` for a create-instrumentation call.
 
@@ -291,18 +250,6 @@ def parse_create_inputs(
     ``(None, error_text)`` when inputs are invalid; ``error_text`` is rendered
     verbatim back to the MCP caller.
     """
-    if normalized_type == 'WATCHER':
-        # Explicit "endpoint omitted entirely" guard before the validator so
-        # the success path doesn't silently rely on
-        # ``validate_watcher_endpoint("")`` rejecting the empty string. The
-        # validator still runs for length/wildcard checks.
-        if not endpoint:
-            return None, 'ERROR: WATCHER requires an endpoint.'
-        endpoint_error = validate_watcher_endpoint(endpoint)
-        if endpoint_error:
-            return None, f'ERROR: {endpoint_error}'
-        return WatcherLocation(endpoint=endpoint), None
-
     if not language or not file_path:
         return None, (
             'ERROR: BREAKPOINT/PROBE require language and file_path.\n'
@@ -337,40 +284,25 @@ def parse_lookup_inputs(
     *,
     normalized_type: str,
     location_hash: Optional[str] = None,
-    endpoint: Optional[str] = None,
     language: Optional[str] = None,
     file_path: Optional[str] = None,
     code_unit: Optional[str] = None,
     class_name: Optional[str] = None,
     method_name: Optional[str] = None,
     line_number: Optional[int] = None,
-    allow_watcher_endpoint_lookup: bool = True,
     allow_code_location_lookup: bool = True,
 ) -> Tuple[Optional[Location], Optional[str]]:
     """Parse MCP-tool kwargs into a ``Location`` for a lookup operation.
 
-    Lookup accepts any of the three variants. Resolution order matches the
-    legacy contract: hash > endpoint > code location. Returns
-    ``(location, None)`` or ``(None, error_text)``.
+    Lookup accepts a location_hash or a code location. Resolution order:
+    hash > code location. Returns ``(location, None)`` or ``(None, error_text)``.
     """
     if location_hash:
         return HashLocation(location_hash=location_hash), None
 
-    if endpoint:
-        if not allow_watcher_endpoint_lookup:
-            return None, 'endpoint lookup is not supported for this operation.'
-        if normalized_type != 'WATCHER':
-            return None, 'endpoint lookup is only valid when instrumentation_type=WATCHER.'
-        endpoint_error = validate_watcher_endpoint(endpoint)
-        if endpoint_error:
-            return None, endpoint_error
-        return WatcherLocation(endpoint=endpoint), None
-
     if language and file_path:
         if not allow_code_location_lookup:
             return None, 'code location lookup is not supported for this operation.'
-        if normalized_type == 'WATCHER':
-            return None, 'WATCHER requires endpoint or location_hash, not code location fields.'
         return (
             CodeLocation(
                 language=language,
@@ -384,7 +316,7 @@ def parse_lookup_inputs(
         )
 
     return None, (
-        'missing location identifier input. Provide location_hash OR endpoint (WATCHER) '
+        'missing location identifier input. Provide location_hash '
         'OR language+file_path (code location).'
     )
 
@@ -393,7 +325,6 @@ def parse_lookup_inputs(
 
 
 _KNOWN_CODE_FIELDS = {'Language', 'FilePath', 'CodeUnit', 'ClassName', 'MethodName', 'LineNumber'}
-_KNOWN_WATCHER_FIELDS = {'Endpoint'}
 
 
 def location_from_response(union_dict: Optional[Dict[str, Any]]) -> Location:
@@ -408,10 +339,6 @@ def location_from_response(union_dict: Optional[Dict[str, Any]]) -> Location:
     code = union_dict.get('CodeLocation')
     if isinstance(code, dict):
         return _code_location_from_dict(code)
-
-    watcher = union_dict.get('WatcherLocation')
-    if isinstance(watcher, dict):
-        return _watcher_location_from_dict(watcher)
 
     if 'Language' in union_dict or 'FilePath' in union_dict:
         return _code_location_from_dict(union_dict)
@@ -428,14 +355,6 @@ def _code_location_from_dict(payload: Dict[str, Any]) -> CodeLocation:
         class_name=payload.get('ClassName'),
         method_name=payload.get('MethodName'),
         line_number=payload.get('LineNumber'),
-        extra_fields=extras,
-    )
-
-
-def _watcher_location_from_dict(payload: Dict[str, Any]) -> WatcherLocation:
-    extras = {k: v for k, v in payload.items() if k not in _KNOWN_WATCHER_FIELDS}
-    return WatcherLocation(
-        endpoint=payload.get('Endpoint', ''),
         extra_fields=extras,
     )
 
@@ -461,7 +380,6 @@ def render_location_block(location: Location, location_hash: Optional[str] = Non
 
 __all__: List[str] = [
     'CodeLocation',
-    'WatcherLocation',
     'HashLocation',
     'UnknownLocation',
     'Location',

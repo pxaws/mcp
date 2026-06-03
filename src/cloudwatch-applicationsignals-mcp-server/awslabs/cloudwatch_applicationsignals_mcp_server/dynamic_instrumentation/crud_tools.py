@@ -14,7 +14,7 @@
 """MCP tool entrypoints for create/list/get/delete instrumentation operations."""
 
 from . import application_signals_gateway as gateway
-from .capture import Capture, CaptureLimits, CodeCapture, WatcherCapture
+from .capture import CaptureLimits, CodeCapture
 from .constants import SNAPSHOT_SIGNAL_TYPE
 from .crud_rendering import (
     _format_batch_delete_response,
@@ -25,7 +25,6 @@ from .crud_rendering import (
 from .location import parse_create_inputs, parse_lookup_inputs
 from .validation import (
     _format_code_location_troubleshooting,
-    _format_watcher_location_troubleshooting,
     normalize_instrumentation_type,
 )
 from datetime import datetime, timedelta, timezone
@@ -38,7 +37,6 @@ def create_instrumentation(
     environment: str,
     language: Optional[str] = None,
     file_path: Optional[str] = None,
-    endpoint: Optional[str] = None,
     code_unit: Optional[str] = None,
     class_name: Optional[str] = None,
     method_name: Optional[str] = None,
@@ -72,7 +70,6 @@ def create_instrumentation(
         language: Required for BREAKPOINT/PROBE code instrumentation.
             Typically Python or Java.
         file_path: Required for BREAKPOINT/PROBE.
-        endpoint: Not used for BREAKPOINT/PROBE.
         code_unit: Module/package name for code instrumentation.
             For Python, use the dotted runtime import path for the defining module,
             or "__main__" only when the target file is executed directly as the
@@ -120,45 +117,6 @@ def create_instrumentation(
     if type_error:
         return type_error
 
-    if normalized_type == 'WATCHER':
-        if any(
-            [
-                language,
-                file_path,
-                code_unit,
-                class_name,
-                method_name,
-                line_number is not None,
-            ]
-        ):
-            return (
-                'ERROR: WATCHER accepts endpoint only. Do not provide language/file_path/'
-                'code_unit/class_name/method_name/line_number.'
-            )
-
-        watcher_code_capture_inputs = any(
-            [
-                capture_arguments,
-                capture_locals,
-                capture_return is not None,
-                capture_stack_trace is not None,
-                max_hits is not None,
-                max_string_length is not None,
-                max_collection_width is not None,
-                max_collection_depth is not None,
-                max_stack_frames is not None,
-                max_stack_trace_size is not None,
-                max_object_depth is not None,
-                max_fields_per_object is not None,
-            ]
-        )
-        if watcher_code_capture_inputs:
-            return (
-                'ERROR: WATCHER does not support code capture fields yet. '
-                'Do not provide capture_arguments/capture_locals/capture_return/'
-                'capture_stack_trace/capture limit fields.'
-            )
-
     location, location_error = parse_create_inputs(
         normalized_type=normalized_type,
         language=language,
@@ -167,7 +125,6 @@ def create_instrumentation(
         class_name=class_name,
         method_name=method_name,
         line_number=line_number,
-        endpoint=endpoint,
     )
     if location_error:
         return location_error
@@ -178,56 +135,47 @@ def create_instrumentation(
         # contract holds even if a future parser bug fires this path.
         return 'ERROR: Internal error resolving location. Please report this issue.'
 
-    capture: Capture
-    if normalized_type == 'WATCHER':
-        capture = WatcherCapture()
-        location_troubleshooting = _format_watcher_location_troubleshooting(endpoint=endpoint)
-        wildcard_removed = False
-        code_capture_locals = None
-        code_capture_return = None
-        code_capture_stack_trace = None
-    else:
-        location_troubleshooting = _format_code_location_troubleshooting(
-            language=language,
-            file_path=file_path,
-            code_unit=code_unit,
-            class_name=class_name,
-            method_name=method_name,
-            line_number=line_number,
+    location_troubleshooting = _format_code_location_troubleshooting(
+        language=language,
+        file_path=file_path,
+        code_unit=code_unit,
+        class_name=class_name,
+        method_name=method_name,
+        line_number=line_number,
+    )
+
+    wildcard_removed = False
+    if capture_arguments is None:
+        return (
+            'ERROR: capture_arguments is required for BREAKPOINT/PROBE code instrumentation.\n'
+            'MCP does not infer argument names automatically.\n'
+            'Inspect the source file directly and re-run with capture_arguments=[...].'
         )
 
-        wildcard_removed = False
-        if capture_arguments is None:
-            return (
-                'ERROR: capture_arguments is required for BREAKPOINT/PROBE code instrumentation.\n'
-                'MCP does not infer argument names automatically.\n'
-                'Inspect the source file directly and re-run with capture_arguments=[...].'
-            )
+    if '*' in capture_arguments:
+        wildcard_removed = True
+    capture_arguments = [arg for arg in capture_arguments if arg != '*']
 
-        if '*' in capture_arguments:
-            wildcard_removed = True
-        capture_arguments = [arg for arg in capture_arguments if arg != '*']
+    code_capture_return = True if capture_return is None else capture_return
+    code_capture_stack_trace = True if capture_stack_trace is None else capture_stack_trace
+    code_capture_locals = capture_locals
 
-        code_capture_return = True if capture_return is None else capture_return
-        code_capture_stack_trace = True if capture_stack_trace is None else capture_stack_trace
-        code_capture_locals = capture_locals
-
-        capture = CodeCapture(
-            capture_return=code_capture_return,
-            capture_stack_trace=code_capture_stack_trace,
-            capture_arguments=capture_arguments,
-            capture_locals=code_capture_locals,
-            limits=CaptureLimits(
-                max_hits=max_hits,
-                max_string_length=max_string_length,
-                max_collection_width=max_collection_width,
-                max_collection_depth=max_collection_depth,
-                max_stack_frames=max_stack_frames,
-                max_stack_trace_size=max_stack_trace_size,
-                max_object_depth=max_object_depth,
-                max_fields_per_object=max_fields_per_object,
-            ),
-        )
+    capture = CodeCapture(
+        capture_return=code_capture_return,
+        capture_stack_trace=code_capture_stack_trace,
+        capture_arguments=capture_arguments,
+        capture_locals=code_capture_locals,
+        limits=CaptureLimits(
+            max_hits=max_hits,
+            max_string_length=max_string_length,
+            max_collection_width=max_collection_width,
+            max_collection_depth=max_collection_depth,
+            max_stack_frames=max_stack_frames,
+            max_stack_trace_size=max_stack_trace_size,
+            max_object_depth=max_object_depth,
+            max_fields_per_object=max_fields_per_object,
+        ),
+    )
 
     target_desc = location.describe()
 
@@ -488,7 +436,6 @@ def delete_instrumentation(
     environment: str,
     instrumentation_type: str,
     location_hash: Optional[str] = None,
-    endpoint: Optional[str] = None,
     language: Optional[str] = None,
     file_path: Optional[str] = None,
     code_unit: Optional[str] = None,
@@ -507,7 +454,6 @@ def delete_instrumentation(
         environment: Backend environment identifier.
         instrumentation_type: BREAKPOINT or PROBE.
         location_hash: Preferred identifier for an existing configuration.
-        endpoint: Not used for BREAKPOINT/PROBE.
         language: Code language for code-location lookup.
         file_path: Code file path for code-location lookup.
         code_unit: Optional module/package name for code-location lookup.
@@ -526,14 +472,12 @@ def delete_instrumentation(
     location, location_error = parse_lookup_inputs(
         normalized_type=normalized_type,
         location_hash=location_hash,
-        endpoint=endpoint,
         language=language,
         file_path=file_path,
         code_unit=code_unit,
         class_name=class_name,
         method_name=method_name,
         line_number=line_number,
-        allow_watcher_endpoint_lookup=True,
         allow_code_location_lookup=True,
     )
     if location_error:
@@ -589,7 +533,6 @@ def get_instrumentation(
     environment: str,
     instrumentation_type: str,
     location_hash: Optional[str] = None,
-    endpoint: Optional[str] = None,
     language: Optional[str] = None,
     file_path: Optional[str] = None,
     code_unit: Optional[str] = None,
@@ -608,7 +551,6 @@ def get_instrumentation(
         environment: Backend environment identifier.
         instrumentation_type: BREAKPOINT or PROBE.
         location_hash: Preferred identifier for an existing configuration.
-        endpoint: Not used for BREAKPOINT/PROBE.
         language: Code language for code-location lookup.
         file_path: Code file path for code-location lookup.
         code_unit: Optional module/package name for code-location lookup.
@@ -627,14 +569,12 @@ def get_instrumentation(
     location, location_error = parse_lookup_inputs(
         normalized_type=normalized_type,
         location_hash=location_hash,
-        endpoint=endpoint,
         language=language,
         file_path=file_path,
         code_unit=code_unit,
         class_name=class_name,
         method_name=method_name,
         line_number=line_number,
-        allow_watcher_endpoint_lookup=True,
         allow_code_location_lookup=True,
     )
     if location_error:

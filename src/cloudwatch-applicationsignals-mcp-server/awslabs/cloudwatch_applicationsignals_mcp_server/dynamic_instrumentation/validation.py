@@ -17,26 +17,15 @@ from .constants import SNAPSHOT_SIGNAL_TYPE
 from typing import Dict, List, Optional, Tuple
 
 
-def validate_watcher_endpoint(endpoint: str) -> Optional[str]:
-    """Return an error message if the WATCHER endpoint is invalid, else None."""
-    if endpoint is None:
-        return 'endpoint is required for WATCHER instrumentation.'
-    if len(endpoint) < 1 or len(endpoint) > 255:
-        return 'endpoint must be between 1 and 255 characters.'
-    if '*' in endpoint and endpoint != '*':
-        return "endpoint can only contain '*' when the value is exactly '*'."
-    return None
-
-
 def normalize_instrumentation_type(
     instrumentation_type: str,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Normalize the type to upper-case; return ``(normalized, error)``."""
     normalized = (instrumentation_type or '').strip().upper()
-    allowed = {'BREAKPOINT', 'PROBE', 'WATCHER'}
+    allowed = {'BREAKPOINT', 'PROBE'}
     if normalized not in allowed:
         return None, (
-            'ERROR: instrumentation_type must be one of BREAKPOINT, PROBE, WATCHER '
+            'ERROR: instrumentation_type must be one of BREAKPOINT, PROBE '
             f'(received: {instrumentation_type})'
         )
     return normalized, None
@@ -110,17 +99,6 @@ def _format_code_location_troubleshooting(
 
     return '\n'.join(lines)
 
-
-def _format_watcher_location_troubleshooting(endpoint: Optional[str]) -> str:
-    """Build troubleshooting guidance for watcher-location create failures."""
-    return '\n'.join(
-        [
-            'WATCHER LOCATION TROUBLESHOOTING:',
-            f'- endpoint={endpoint}',
-            '- Use endpoint="*" to monitor all endpoints for the service.',
-            '- Use endpoint="METHOD /path" to monitor a specific endpoint.',
-        ]
-    )
 
 
 def _validate_location_inputs(

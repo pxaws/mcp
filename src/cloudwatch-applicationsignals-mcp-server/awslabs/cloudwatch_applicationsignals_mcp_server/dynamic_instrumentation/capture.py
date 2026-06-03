@@ -136,15 +136,6 @@ class CodeCapture:
 
 
 @dataclass(frozen=True)
-class WatcherCapture:
-    """Capture configuration for WATCHER (empty payload by API contract)."""
-
-    def to_api_payload(self) -> Dict[str, Any]:
-        """Render the WatcherCapture payload (empty by API contract)."""
-        return {'WatcherCapture': {}}
-
-
-@dataclass(frozen=True)
 class UnknownCapture:
     """A CaptureConfiguration union that did not match a known variant.
 
@@ -162,7 +153,7 @@ class UnknownCapture:
             object.__setattr__(self, 'raw', MappingProxyType(dict(self.raw)))
 
 
-Capture = Union[CodeCapture, WatcherCapture, UnknownCapture]
+Capture = Union[CodeCapture, UnknownCapture]
 
 
 _CODE_CAPTURE_HINT_KEYS = (
@@ -187,10 +178,6 @@ def capture_from_response(union_dict: Optional[Dict[str, Any]]) -> Capture:
     code = union_dict.get('CodeCapture')
     if isinstance(code, dict):
         return _code_capture_from_dict(code)
-
-    watcher = union_dict.get('WatcherCapture')
-    if isinstance(watcher, dict):
-        return WatcherCapture()
 
     if any(key in union_dict for key in _CODE_CAPTURE_HINT_KEYS):
         return _code_capture_from_dict(union_dict)
@@ -226,7 +213,6 @@ def _code_capture_from_dict(payload: Dict[str, Any]) -> CodeCapture:
 __all__ = [
     'CaptureLimits',
     'CodeCapture',
-    'WatcherCapture',
     'UnknownCapture',
     'Capture',
     'capture_from_response',
